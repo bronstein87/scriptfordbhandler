@@ -19,7 +19,6 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
 
     QString checkConstraintTriggers;
 
-    QString checkConstraint;
 
 
 
@@ -109,10 +108,14 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
             // делаем один триггер для всех таблиц внешнего уровня
             if(mounthNumber == 0)
             {
-                checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1_insert()\n"
+                checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_constraint_insert()\n"
                                                        "RETURNS TRIGGER AS $$\n"
-                                                       "BEGIN\n\n"
-                                                       "IF(SELECT COUNT(*) FROM TG_RELNAME WHERE datetime = NEW.datetime) = 0 THEN\n"
+                                                       "DECLARE\n "
+                                                       "result          integer;\n"
+                                                       "BEGIN\n "
+                                                       "EXECUTE 'SELECT 1 FROM ' || TG_TABLE_SCHEMA || '.' || TG_RELNAME || ' WHERE datetime = ' || quote_literal(NEW.datetime) ||';'"
+                                                       "INTO result;\n"
+                                                       "IF (result IS NULL) THEN\n"
                                                        "RETURN NEW;\n"
                                                        "END IF;\n"
                                                        "RETURN NULL;\n"
@@ -121,17 +124,13 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
                                                         "LANGUAGE plpgsql;\n\n").arg(schemaName));
             }
 
-            checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %2.%1_insert()\n"
-                                                   "RETURNS TRIGGER AS $$\n"
-                                                   "BEGIN\n\n")
-                                           .arg(tableName + "_" + startDate.addMonths(mounthNumber).toString("MM")+startDate.addMonths(mounthNumber).toString("yy")+"_"+deviceNumbers[deviceIt]))
-                    .arg(schemaName);
 
-            QString checkConstraintStr = QString("ALTER TABLE %1_%2 DROP CONSTRAINT %3_pr_num_check;\n")
-                    .arg(tableName)
-                    .arg(QString(startDate.addMonths(mounthNumber).toString("MM")+startDate.addMonths(mounthNumber).toString("yy")+"_"+deviceNumbers[deviceIt]))
-                    .arg(tableName+"_"+deviceNumbers[deviceIt]);
-            checkConstraint.append(checkConstraintStr);
+            checkConstraintTriggers.append(QString("CREATE TRIGGER %1_insert_trigger\n"
+                                                   "BEFORE INSERT ON %2.%1\n"
+                                                   "FOR EACH ROW EXECUTE PROCEDURE %2.check_constraint_insert();\n\n\n")
+                                           .arg(tableName + "_" + startDate.addMonths(mounthNumber).toString("MM")+startDate.addMonths(mounthNumber).toString("yy")+"_"+deviceNumbers[deviceIt])
+                    .arg(schemaName));
+
 
 
             if(mounthNumber==0)
@@ -251,8 +250,12 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName,quin
         {
             checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_constraint_insert()\n"
                                                    "RETURNS TRIGGER AS $$\n"
-                                                   "BEGIN\n\n"
-                                                   "IF(SELECT COUNT(*) FROM TG_RELNAME WHERE datetime = NEW.datetime) = 0 THEN\n"
+                                                   "DECLARE\n "
+                                                   "result          integer;\n"
+                                                   "BEGIN\n"
+                                                   "EXECUTE 'SELECT 1 FROM ' || TG_TABLE_SCHEMA || '.' || TG_RELNAME || ' WHERE datetime = ' || quote_literal(NEW.datetime) ||';'\n"
+                                                   "INTO result;\n"
+                                                   "IF (result IS NULL) THEN\n"
                                                    "RETURN NEW;\n"
                                                    "END IF;\n"
                                                    "RETURN NULL;\n"
