@@ -31,7 +31,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
     for(int deviceIt = 0;deviceIt < deviceNumbers.size();deviceIt ++)
     {
         // создание первого уровня таблиц по номерам приборов
-        QString createDateTableText = QString("CREATE TABLE %1_%2 (CHECK (pr_num=%2)) INHERITS (%1);\n")
+        QString createDateTableText = QString("CREATE TABLE %1_%2 (CHECK (pr_num=%2)) TABLESPACE bokzspace INHERITS (%1);\n")
                 .arg(tableName)
                 .arg(deviceNumbers[deviceIt]);
 
@@ -95,7 +95,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
             QDate dateRangeEnd = startDate;
             dateRangeEnd.addMonths(mounthNumber);
             QString createDateTableText = QString("CREATE TABLE %1_%2 (PRIMARY KEY (datetime),\n"
-                                                  "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4')) INHERITS (%5);\n")
+                                                  "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4')) TABLESPACE bokzspace INHERITS (%5);\n")
                     .arg(tableName)
                     .arg(QString(startDate.addMonths(mounthNumber).toString("MM")+startDate.addMonths(mounthNumber).toString("yy")+"_"+deviceNumbers[deviceIt]))
                     .arg(startDate.addMonths(mounthNumber).toString(Qt::ISODate))
@@ -236,7 +236,7 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName,quin
         QDate dateRangeEnd=startDate;
         dateRangeEnd.addMonths(mounthNumber);
         QString createDateTableText=QString("CREATE TABLE %1_%2 (PRIMARY KEY (datetime),\n"
-                                            "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4')) INHERITS (%5);\n")
+                                            "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4')) TABLESPACE bokzspace INHERITS (%5);\n")
                 .arg(tableName)
                 .arg(QString(startDate.addMonths(mounthNumber).toString("MM")+startDate.addMonths(mounthNumber).toString("yy")))
                 .arg(startDate.addMonths(mounthNumber).toString(Qt::ISODate))
