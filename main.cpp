@@ -10,7 +10,7 @@
 
 using namespace std;
 void createTwoLevelTables(const QString& schemaName, const QString& tableName,const QStringList& deviceNumbers,
-                          QDate startDate, const QDate& endDate, const QString& type)
+                          QDate startDate, QDate endDate, const QString& type, bool dateOffset)
 {
     QString deviceTables;
     QString deviceTablesTrigger;
@@ -26,17 +26,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
                                        "RETURNS TRIGGER AS $$\n"
                                        "BEGIN\n\n").arg(tableName).arg(schemaName));
 
-    startDate = startDate.addMonths(-1);
-    quint16 step;
-    quint32 count;
-    if (type == "m") {
-        count = 12;
-        step = 1;
-    }
-    else {
-        count = (endDate.year() - startDate.year()) * 2;
-        step = 6;
-    }
+
     for(int deviceIt = 0; deviceIt < deviceNumbers.size(); deviceIt++)
     {
         // создание первого уровня таблиц по номерам приборов
@@ -61,8 +51,8 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
         // заполнения тела триггера по номерам приборов
 
         QString deviceTriggerString = QString("%1 ( NEW.pr_num = %2) THEN\n"
-                                              "INSERT INTO %3_%2 VALUES (NEW.*);\n")
-                .arg(conditionName).arg(deviceNumbers[deviceIt]).arg(tableName);
+                                              "INSERT INTO %4.%3_%2 VALUES (NEW.*);\n")
+                .arg(conditionName).arg(deviceNumbers[deviceIt]).arg(tableName).arg(schemaName);
 
         deviceTablesTrigger.append(deviceTriggerString);
 
@@ -80,7 +70,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
                                            "LANGUAGE plpgsql;\n\n");
             deviceTablesTrigger.append(endOfTrigger);
 
-            QString usingTrigger=QString("CREATE TRIGGER %1_insert_trigger\n"
+            QString usingTrigger = QString("CREATE TRIGGER %1_insert_trigger\n"
                                          "BEFORE INSERT ON %2.%1\n"
                                          "FOR EACH ROW EXECUTE PROCEDURE %2.%1_insert();\n\n").arg(tableName).arg(schemaName);
 
@@ -112,16 +102,39 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
                                                "$$\n"
                                                "LANGUAGE plpgsql;\n\n").arg(schemaName));
 
-        QDate fromDate = startDate;
+
+        QDate tstartDate = startDate.addMonths(-1);
+        quint16 step;
+        quint32 count;
+        if (type == "m") {
+            count = 12;
+            step = 1;
+        }
+        else {
+            count = (endDate.year() - startDate.year()) * 2;
+            step = 6;
+        }
+
+        QDate fromDate = tstartDate;
         QDate toDate = fromDate;
 
         for (quint32 dIt = 0; dIt < count; dIt++)
         {
             toDate = toDate.addMonths(step);
+            QDate toDateInsert;
+            if (dateOffset)
+            {
+                toDateInsert = toDate;
+            }
+            else
+            {
+               toDateInsert = toDate.addMonths(-1);
+            }
+
             QString createDateTableText = QString("CREATE TABLE %6.%1_%2 (PRIMARY KEY (datetime),\n"
                                                   "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4'))  INHERITS (%6.%5) TABLESPACE bokzspace;\n")
                     .arg(tableName)
-                    .arg(QString(toDate.toString("MM") +toDate.toString("yy")+"_" + deviceNumbers[deviceIt]))
+                    .arg(QString(toDateInsert.toString("MM") + toDateInsert.toString("yy") + "_" + deviceNumbers[deviceIt]))
                     .arg(fromDate.toString(Qt::ISODate))
                     .arg(toDate.toString(Qt::ISODate))
                     .arg(tableName + "_" + deviceNumbers[deviceIt])
@@ -133,7 +146,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
             checkConstraintTriggers.append(QString("CREATE TRIGGER %1_insert_trigger\n"
                                                    "BEFORE INSERT ON %2.%1\n"
                                                    "FOR EACH ROW EXECUTE PROCEDURE %2.check_constraint_insert();\n\n\n")
-                                           .arg(tableName + "_" + toDate.toString("MM") + toDate.toString("yy") + "_" + deviceNumbers[deviceIt])
+                                           .arg(tableName + "_" + toDateInsert.toString("MM") + toDateInsert.toString("yy") + "_" + deviceNumbers[deviceIt])
                                            .arg(schemaName));
 
 
@@ -157,7 +170,7 @@ void createTwoLevelTables(const QString& schemaName, const QString& tableName,co
                     .arg(conditionName)
                     .arg(fromDate.toString(Qt::ISODate))
                     .arg(toDate.toString(Qt::ISODate))
-                    .arg(tableName + "_" + QString(toDate.toString("MM") + toDate.toString("yy") + "_"+deviceNumbers[deviceIt]))
+                    .arg(tableName + "_" + QString(toDateInsert.toString("MM") + toDateInsert.toString("yy") + "_"+deviceNumbers[deviceIt]))
                     .arg(schemaName);
 
             dateTablesTriggers.append(dateTriggerString);
@@ -292,7 +305,7 @@ void createSHTMITables(const QString& schemaName, const QStringList& deviceNumbe
 }
 
 void createOneLevelTable(const QString& schemaName,const QString& tableName, QDate startDate,
-                         QDate endDate, const QString& type)
+                         QDate endDate, const QString& type, bool dateOffset)
 {
     QString dateTables;
     QString dateTablesTriggers;
@@ -319,8 +332,7 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName, QDa
                                            "$$\n"
                                            "LANGUAGE plpgsql;\n\n").arg(schemaName));
 
-    QDate fromDate = startDate;
-    QDate toDate = fromDate;
+    startDate = startDate.addMonths(-1);
     quint16 step;
     quint32 count;
     if (type == "m") {
@@ -332,14 +344,26 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName, QDa
         step = 6;
     }
 
-    startDate = startDate.addMonths(-1);
+    QDate fromDate = startDate;
+    QDate toDate = fromDate;
+
     for (int dIt = 0; dIt < count; dIt++)
     {
         toDate = toDate.addMonths(step);
+
+        QDate toDateInsert;
+        if (dateOffset)
+        {
+            toDateInsert = toDate;
+        }
+        else
+        {
+           toDateInsert = toDate.addMonths(-1);
+        }
         QString createDateTableText = QString("CREATE TABLE %6.%1_%2 (PRIMARY KEY (datetime),\n"
                                               "CHECK (datetime >= DATE '%3' AND datetime < DATE '%4'))  INHERITS (%6.%5) TABLESPACE bokzspace;\n")
                 .arg(tableName)
-                .arg(QString(toDate.toString("MM") + toDate.toString("yy")))
+                .arg(QString(toDateInsert.toString("MM") + toDateInsert.toString("yy")))
                 .arg(fromDate.toString(Qt::ISODate))
                 .arg(toDate.toString(Qt::ISODate))
                 .arg(tableName)
@@ -352,7 +376,7 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName, QDa
         checkConstraintTriggers.append(QString("CREATE TRIGGER %1_insert_trigger\n"
                                                "BEFORE INSERT ON %2.%1\n"
                                                "FOR EACH ROW EXECUTE PROCEDURE %2.check_constraint_insert();\n\n\n")
-                                       .arg(tableName + "_" + toDate.toString("MM") + toDate.toString("yy"))
+                                       .arg(tableName + "_" + toDateInsert.toString("MM") + toDateInsert.toString("yy"))
                                        .arg(schemaName));
 
 
@@ -375,7 +399,7 @@ void createOneLevelTable(const QString& schemaName,const QString& tableName, QDa
                 .arg(conditionName)
                 .arg(fromDate.toString(Qt::ISODate))
                 .arg(toDate.toString(Qt::ISODate))
-                .arg(tableName+"_"+QString(toDate.toString("MM") + toDate.toString("yy")))
+                .arg(tableName+"_"+QString(toDateInsert.toString("MM") + toDateInsert.toString("yy")))
                 .arg(schemaName);
 
         dateTablesTriggers.append(dateTriggerString);
@@ -463,19 +487,27 @@ int main()
     cout << "Enter device numbers (separeted by commas):" << endl;
     QString deviceNumbersStr;
     in >> deviceNumbersStr;
+    cout << "date offset? (y/n):" << endl;
+
+    QString doffset;
+    in >> doffset;
+    bool dateOffset = false;
+    if (doffset == "y")
+        dateOffset = true;
+
 
     QStringList deviceNumbers = deviceNumbersStr.split(',');
     if (levelType == "t") {
-        createTwoLevelTables(schemaName, "dtmi", deviceNumbers, startDate, endDate, type);
-        createTwoLevelTables(schemaName, "orient", deviceNumbers, startDate, endDate, type);
+        createTwoLevelTables(schemaName, "dtmi", deviceNumbers, startDate, endDate, type, dateOffset);
+        createTwoLevelTables(schemaName, "orient", deviceNumbers, startDate, endDate, type, dateOffset);
     }
     if(levelType == "o") {
-        createOneLevelTable(schemaName, "dtmi", startDate, endDate, type);
-        createOneLevelTable(schemaName, "orient", startDate, endDate, type);
+        createOneLevelTable(schemaName, "dtmi", startDate, endDate, type, dateOffset);
+        createOneLevelTable(schemaName, "orient", startDate, endDate, type, dateOffset);
     }
     createSHTMITables(schemaName, deviceNumbers);
-    createOneLevelTable(schemaName, "ksv", startDate, endDate, type);
-    cout << "Создание скриптов успешно завершено" << endl;
+    createOneLevelTable(schemaName, "ksv", startDate, endDate, type, dateOffset);
+    cout << "Finished sucssesfuly" << endl;
 
 
     return 0;
