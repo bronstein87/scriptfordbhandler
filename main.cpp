@@ -104,7 +104,12 @@ public:
 
 
             // делаем один триггер для всех таблиц внешнего уровня
-            checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_constraint_insert()\n"
+            QString addName;
+            if (!additionalCheckBeforeInsert.isEmpty())
+            {
+                addName = tableName;
+            }
+            checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_%3_constraint_insert()\n"
                                                    "RETURNS TRIGGER AS $$\n"
                                                    "DECLARE\n "
                                                    "result          integer;\n"
@@ -119,7 +124,8 @@ public:
                                                    "$$\n"
                                                    "LANGUAGE plpgsql;\n\n")
                                            .arg(schemaName)
-                                           .arg(additionalCheckBeforeInsert));
+                                           .arg(additionalCheckBeforeInsert)
+                                           .arg(addName));
 
 
             QDate tstartDate = startDate.addMonths(-1);
@@ -339,7 +345,12 @@ public:
 
 
         // делаем один триггер для всех таблиц внешнего уровня
-        checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_constraint_insert()\n"
+        QString addName;
+        if (!additionalCheckBeforeInsert.isEmpty())
+        {
+            addName = tableName;
+        }
+        checkConstraintTriggers.append(QString("CREATE OR REPLACE FUNCTION %1.check_%3_constraint_insert()\n"
                                                "RETURNS TRIGGER AS $$\n"
                                                "DECLARE\n "
                                                "result          integer;\n"
@@ -354,7 +365,8 @@ public:
                                                "$$\n"
                                                "LANGUAGE plpgsql;\n\n")
                                        .arg(schemaName)
-                                       .arg(additionalCheckBeforeInsert));
+                                       .arg(additionalCheckBeforeInsert)
+                                       .arg(addName));
 
         QDate tstartDate = startDate.addMonths(-1);
         quint16 step;
